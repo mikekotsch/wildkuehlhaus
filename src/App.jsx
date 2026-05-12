@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { supabase } from "./lib/supabase";
 
-const MAX_UNITS   = 100;
-const STORAGE_KEY = "kuehlhaus_v2";
-const ZOO_EMAIL   = "zoo@example.com"; // ← hier eintragen
+const MAX_UNITS = 100;
+const ZOO_EMAIL = "zoo@example.com"; // ← hier eintragen
 
 const WILD = [
   { label: "Klein",  sub: "Hase · Ente · Fasan", value: "K", units: 5,  icon: "🐇" },
@@ -12,15 +12,10 @@ const WILD = [
 
 const leer = { einlagerungen: [], einheiten: 0 };
 
-function laden() {
-  try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : leer; }
-  catch { return leer; }
-}
-
 function datum(iso) {
   return new Date(iso).toLocaleString("de-DE", {
     day: "2-digit", month: "2-digit", year: "2-digit",
-    hour: "2-digit", minute: "2-digit"
+    hour: "2-digit", minute: "2-digit",
   });
 }
 
@@ -41,19 +36,43 @@ const F = {
 };
 
 export default function App() {
-  const [state, setState]           = useState(laden);
+  const [state, setState]           = useState(leer);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState(false);
+  const [canWrite]                  = useState(
+    () => new URLSearchParams(window.location.search).get("token") ===
+          import.meta.env.VITE_WRITE_TOKEN
+  );
   const [schritt, setSchritt]       = useState("start");
   const [name, setName]             = useState("");
   const [geradVoll, setGeradVoll]   = useState(false);
   const [zeigeReset, setZeigeReset] = useState(false);
-  const vorherVoll = useRef(state.einheiten >= MAX_UNITS);
+  const vorherVoll = useRef(false);
 
-  const pct      = Math.min(100, Math.round((state.einheiten / MAX_UNITS) * 100));
-  const istVoll  = pct >= 100;
-  const balkenF  = pct < 60 ? F.gruenMi : pct < 85 ? F.amber : F.rot;
+  const pct     = Math.min(100, Math.round((state.einheiten / MAX_UNITS) * 100));
+  const istVoll = pct >= 100;
+  const balkenF = pct < 60 ? F.gruenMi : pct < 85 ? F.amber : F.rot;
+
+  const fetchState = useCallback(async () => {
+    const { data, error: err } = await supabase
+      .from("einlagerungen")
+      .select("*")
+      .order("ts", { ascending: false });
+    if (err) {
+      setError(true);
+    } else {
+      setState({
+        einlagerungen: data,
+        einheiten: data.reduce((sum, e) => sum + e.einheiten, 0),
+      });
+    }
+    setLoading(false);
+  }, []);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { fetchState(); }, [fetchState]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     const nowVoll = state.einheiten >= MAX_UNITS;
     if (nowVoll && !vorherVoll.current) {
       setGeradVoll(true);
@@ -62,15 +81,19 @@ export default function App() {
     vorherVoll.current = nowVoll;
   }, [state]);
 
-  function einlagern(groesse) {
+  async function einlagern(groesse) {
     const w = WILD.find(w => w.value === groesse);
-    setState(prev => ({
-      einlagerungen: [
-        { id: Date.now(), name, groesse, einheiten: w.units, icon: w.icon, ts: new Date().toISOString() },
-        ...prev.einlagerungen
-      ],
-      einheiten: Math.min(MAX_UNITS, prev.einheiten + w.units),
-    }));
+    const { error: err } = await supabase.from("einlagerungen").insert({
+      name,
+      groesse,
+      einheiten: w.units,
+      icon: w.icon,
+    });
+    if (!err) {
+      setLoading(true);
+      setError(false);
+      await fetchState();
+    }
     setSchritt("bestaetigt");
     setName("");
     setTimeout(() => setSchritt("start"), 3000);
@@ -134,6 +157,23 @@ export default function App() {
       </header>
 
       <main style={{ maxWidth: 540, margin: "0 auto", padding: "0 16px 64px" }}>
+
+        {error && (
+          <div style={{
+            marginTop: 24,
+            background: F.rotBg, border: `2px solid ${F.rot}`,
+            borderRadius: 12, padding: "28px 24px", textAlign: "center",
+          }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: F.rot }}>
+              Verbindungsfehler – bitte neu laden
+            </div>
+            {localStorage.getItem("kuehlhaus_last_reset") && (
+              <div style={{ fontSize: 14, color: F.textHe, marginTop: 8 }}>
+                Zuletzt geleert: {datum(localStorage.getItem("kuehlhaus_last_reset"))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── FÜLLSTAND ───────────────────────────────── */}
         <div style={{
@@ -208,26 +248,26 @@ export default function App() {
           </div>
         )}
 
-        {/* ── EINLAGERN: SCHRITT START ─────────────────── */}
+        {/* ── EINLAGERN ───────────────────────────────── */}
         <div style={{ marginTop: 20 }}>
-          {schritt === "start" && (
+          {canWrite && schritt === "start" && (
             <button
-              onClick={() => !istVoll && setSchritt("name")}
+              onClick={() => !istVoll && !loading && setSchritt("name")}
               style={{
                 width: "100%", padding: "22px",
-                background: istVoll ? F.randHe : F.gruen,
+                background: istVoll || loading ? F.randHe : F.gruen,
                 border: "none", borderRadius: 10,
-                color: istVoll ? F.textHe : "#f0ead8",
+                color: istVoll || loading ? F.textHe : "#f0ead8",
                 fontSize: 22, fontWeight: 700,
                 fontFamily: "'Playfair Display', serif",
-                cursor: istVoll ? "not-allowed" : "pointer",
+                cursor: istVoll || loading ? "not-allowed" : "pointer",
               }}>
-              {istVoll ? "✗  Einlagerung nicht möglich" : "+ Wild einlagern"}
+              {istVoll ? "✗  Einlagerung nicht möglich" : loading ? "Laden …" : "+ Wild einlagern"}
             </button>
           )}
 
           {/* SCHRITT: NAME ─────────────────────────────── */}
-          {schritt === "name" && (
+          {canWrite && schritt === "name" && (
             <div style={{
               background: F.paper, border: `2px solid ${F.rand}`,
               borderRadius: 12, padding: "24px",
@@ -274,7 +314,7 @@ export default function App() {
           )}
 
           {/* SCHRITT: GRÖSSE ───────────────────────────── */}
-          {schritt === "groesse" && (
+          {canWrite && schritt === "groesse" && (
             <div style={{
               background: F.paper, border: `2px solid ${F.rand}`,
               borderRadius: 12, padding: "24px",
@@ -318,7 +358,7 @@ export default function App() {
           )}
 
           {/* SCHRITT: BESTÄTIGT ────────────────────────── */}
-          {schritt === "bestaetigt" && (
+          {canWrite && schritt === "bestaetigt" && (
             <div style={{
               background: "#eef5ee", border: `2px solid ${F.gruenMi}`,
               borderRadius: 12, padding: "28px 24px", textAlign: "center",
@@ -368,39 +408,46 @@ export default function App() {
         )}
 
         {/* ── RESET ───────────────────────────────────── */}
-        <div style={{ marginTop: 44, paddingTop: 20, borderTop: `2px solid ${F.randHe}` }}>
-          {!zeigeReset ? (
-            <button onClick={() => setZeigeReset(true)} style={{
-              background: "none", border: "none",
-              color: F.textHe, fontFamily: "'Georgia', serif",
-              fontSize: 15, cursor: "pointer",
-            }}>⟳ Zoo hat abgeholt – Kühlhaus leeren</button>
-          ) : (
-            <div style={{
-              background: F.paper, border: `2px solid ${F.rand}`,
-              borderRadius: 10, padding: "20px",
-            }}>
-              <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 14 }}>
-                Alle Einträge löschen?
+        {canWrite && (
+          <div style={{ marginTop: 44, paddingTop: 20, borderTop: `2px solid ${F.randHe}` }}>
+            {!zeigeReset ? (
+              <button onClick={() => setZeigeReset(true)} style={{
+                background: "none", border: "none",
+                color: F.textHe, fontFamily: "'Georgia', serif",
+                fontSize: 15, cursor: "pointer",
+              }}>⟳ Zoo hat abgeholt – Kühlhaus leeren</button>
+            ) : (
+              <div style={{
+                background: F.paper, border: `2px solid ${F.rand}`,
+                borderRadius: 10, padding: "20px",
+              }}>
+                <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 14 }}>
+                  Alle Einträge löschen?
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button onClick={async () => {
+                    await supabase.from("einlagerungen").delete().gte("id", 0);
+                    localStorage.setItem("kuehlhaus_last_reset", new Date().toISOString());
+                    setState(leer);
+                    setZeigeReset(false);
+                  }} style={{
+                    flex: 1, padding: "14px",
+                    background: F.gruen, border: "none",
+                    borderRadius: 8, color: "#f0ead8",
+                    fontSize: 17, fontWeight: 700, cursor: "pointer",
+                    fontFamily: "'Playfair Display', serif",
+                  }}>Ja, zurücksetzen</button>
+                  <button onClick={() => setZeigeReset(false)} style={{
+                    flex: 1, padding: "14px",
+                    background: "none", border: `2px solid ${F.rand}`,
+                    borderRadius: 8, color: F.textHe,
+                    fontSize: 17, cursor: "pointer",
+                  }}>Abbrechen</button>
+                </div>
               </div>
-              <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={() => { setState({ ...leer }); setZeigeReset(false); }} style={{
-                  flex: 1, padding: "14px",
-                  background: F.gruen, border: "none",
-                  borderRadius: 8, color: "#f0ead8",
-                  fontSize: 17, fontWeight: 700, cursor: "pointer",
-                  fontFamily: "'Playfair Display', serif",
-                }}>Ja, zurücksetzen</button>
-                <button onClick={() => setZeigeReset(false)} style={{
-                  flex: 1, padding: "14px",
-                  background: "none", border: `2px solid ${F.rand}`,
-                  borderRadius: 8, color: F.textHe,
-                  fontSize: 17, cursor: "pointer",
-                }}>Abbrechen</button>
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </main>
 
       <style>{`
