@@ -38,8 +38,9 @@ One table: `einlagerungen`
 `einheiten` total is derived at read time by summing the column — no stored aggregate.
 
 **Row-level security:**
-- `anon` role: `SELECT` only
-- Writes use the service role key, called only when `canWrite` is true in the app
+- `anon` role: `SELECT`, `INSERT`, `DELETE` — all operations use the anon key
+- Write access is gated in the app via `canWrite`; Supabase RLS is not the security layer here
+- The anon key is safe to expose in the frontend bundle
 
 ---
 
@@ -89,7 +90,9 @@ VITE_WRITE_TOKEN=...              # secret; shared with hunters via write link
 
 Stored in `.env.local` (gitignored) for local dev. Set in Netlify/Vercel deploy settings for production.
 
-`.env.local` added to `.gitignore` (already present via Vite's default).
+`.env.local` is already gitignored via Vite's default `.gitignore`.
+
+`VITE_WRITE_TOKEN` is the only value that must be kept secret.
 
 ---
 
