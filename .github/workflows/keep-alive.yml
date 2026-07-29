@@ -11,8 +11,8 @@ jobs:
     steps:
       - name: Ping Supabase
         run: |
-          curl -sf \
+          curl -fsS \
             "${{ secrets.VITE_SUPABASE_URL }}/rest/v1/einlagerungen?select=id&limit=1" \
             -H "apikey: ${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
             -H "Authorization: Bearer ${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
-            && echo "Supabase is alive" || echo "Ping failed"
+            && echo "Supabase is alive"
