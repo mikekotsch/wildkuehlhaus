@@ -2,8 +2,8 @@ name: Keep Supabase alive
 
 on:
   schedule:
-    - cron: '0 8 */3 * *'  # every 3 days at 08:00 UTC
-  workflow_dispatch:        # allow manual trigger
+    - cron: '0 8 * * *'  # daily at 08:00 UTC
+  workflow_dispatch:      # allow manual trigger
 
 jobs:
   ping:
@@ -11,8 +11,9 @@ jobs:
     steps:
       - name: Ping Supabase
         run: |
-          curl -sf \
-            "${{ secrets.VITE_SUPABASE_URL }}/rest/v1/einlagerungen?select=id&limit=1" \
+          curl -fsS \
+            "${{ secrets.VITE_SUPABASE_URL }}/rest/v1/einlagerungen?select=id&limit=1&_=$(date +%s)" \
             -H "apikey: ${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
             -H "Authorization: Bearer ${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
-            && echo "Supabase is alive" || echo "Ping failed"
+            -H "Cache-Control: no-cache" \
+            && echo "Supabase is alive"
