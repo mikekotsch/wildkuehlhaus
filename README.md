@@ -14,9 +14,12 @@ Eine einfache Web-App zur Verwaltung des Wildkühlhauses. Jäger können Wild ei
 
 | Größe  | Tierarten              | Kapazität |
 |--------|------------------------|-----------|
-| Klein  | Hase · Ente · Fasan    | ~5 %      |
-| Mittel | Reh · Fuchs            | ~15 %     |
-| Groß   | Hirsch · Wildschwein   | ~30 %     |
+| Klein  | Hase · Ente · Fasan    | ~6 %      |
+| Mittel | Reh · Fuchs            | ~17 %     |
+| Groß   | Hirsch · Wildschwein   | ~33 %     |
+
+Das Kühlhaus ist auf drei große Tiere ausgelegt. Drei Einlagerungen der
+Kategorie „Groß“ entsprechen daher 100 % Auslastung.
 
 ## Setup
 

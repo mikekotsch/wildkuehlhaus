@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "./lib/supabase";
 
-const MAX_UNITS = 100;
+// Three large animals (3 × 30 units) fill the available cold-store capacity.
+const MAX_UNITS = 90;
 const ZOO_EMAIL = "zoo@example.com"; // ← hier eintragen
 
 const WILD = [
