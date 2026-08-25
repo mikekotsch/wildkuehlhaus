@@ -48,6 +48,7 @@ export default function App() {
   const [name, setName]             = useState("");
   const [geradVoll, setGeradVoll]   = useState(false);
   const [zeigeReset, setZeigeReset] = useState(false);
+  const [resetting, setResetting]   = useState(false);
   const vorherVoll = useRef(false);
 
   const pct     = Math.min(100, Math.round((state.einheiten / MAX_UNITS) * 100));
@@ -58,6 +59,7 @@ export default function App() {
     const { data, error: err } = await supabase
       .from("einlagerungen")
       .select("*")
+      .is("abgeholt_am", null)
       .order("ts", { ascending: false });
     if (err) {
       setError(true);
@@ -427,22 +429,35 @@ export default function App() {
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
                   <button onClick={async () => {
-                    await supabase.from("einlagerungen").delete().gte("id", 0);
-                    localStorage.setItem("kuehlhaus_last_reset", new Date().toISOString());
+                    if (resetting) return;
+                    setResetting(true);
+                    const now = new Date().toISOString();
+                    const { error: err } = await supabase
+                      .from("einlagerungen")
+                      .update({ abgeholt_am: now })
+                      .is("abgeholt_am", null);
+                    setResetting(false);
+                    if (err) {
+                      setError(true);
+                      return;
+                    }
+                    setError(false);
                     setState(leer);
                     setZeigeReset(false);
                   }} style={{
                     flex: 1, padding: "14px",
                     background: F.gruen, border: "none",
                     borderRadius: 8, color: "#f0ead8",
-                    fontSize: 17, fontWeight: 700, cursor: "pointer",
+                    fontSize: 17, fontWeight: 700, cursor: resetting ? "not-allowed" : "pointer",
                     fontFamily: "'Playfair Display', serif",
-                  }}>Ja, zurücksetzen</button>
-                  <button onClick={() => setZeigeReset(false)} style={{
+                    opacity: resetting ? 0.6 : 1,
+                  }} disabled={resetting}>{resetting ? "Wird archiviert …" : "Ja, zurücksetzen"}</button>
+                  <button onClick={() => setZeigeReset(false)} disabled={resetting} style={{
                     flex: 1, padding: "14px",
                     background: "none", border: `2px solid ${F.rand}`,
                     borderRadius: 8, color: F.textHe,
-                    fontSize: 17, cursor: "pointer",
+                    fontSize: 17, cursor: resetting ? "not-allowed" : "pointer",
+                    opacity: resetting ? 0.6 : 1,
                   }}>Abbrechen</button>
                 </div>
               </div>
