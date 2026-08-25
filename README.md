@@ -21,6 +21,18 @@ Eine einfache Web-App zur Verwaltung des Wildkühlhauses. Jäger können Wild ei
 Das Kühlhaus ist auf drei große Tiere ausgelegt. Drei Einlagerungen der
 Kategorie „Groß“ entsprechen daher 100 % Auslastung.
 
+## Archivierung nach Abholung
+
+Wenn der Zoo das Kühlhaus leert, werden die aktiven Einträge nicht gelöscht.
+Sie erhalten in Supabase einen Zeitstempel in `abgeholt_am` und verschwinden
+dadurch aus Füllstand und Einlagerungsprotokoll. Die Daten bleiben für eine
+spätere Auswertung in der Datenbank erhalten.
+
+Vor dem Deployen dieser Version muss
+`supabase/migrations/20260825000000_archive_collected_entries.sql` im
+Supabase SQL Editor ausgeführt werden. Die Migration ergänzt die benötigte
+Spalte und die Berechtigung zum Archivieren.
+
 ## Setup
 
 ### Voraussetzungen
