@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
 ## Commands
 
@@ -13,7 +13,7 @@ npm run lint     # eslint check (no --fix)
 npm run preview  # serve the production build locally
 ```
 
-No TypeScript — the parent `CLAUDE.md` rule about `npx tsc --noEmit` does not apply here. Post-edit verification is `npx eslint .` only.
+No TypeScript — the parent `AGENTS.md` rule about `npx tsc --noEmit` does not apply here. Post-edit verification is `npx eslint .` only.
 
 ## Environment variables
 
@@ -24,7 +24,6 @@ Copy `.env.example` to `.env.local` and fill in the values:
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon key (safe to expose) |
 | `VITE_WRITE_TOKEN` | Secret token for the write link — keep private |
-| `VITE_ZOO_EMAIL` | Recipient for the zoo notification mailto link |
 
 **Write link:** `https://<deployed-url>?token=<VITE_WRITE_TOKEN>` — share this with hunters. Public URL (no token) is read-only.
 

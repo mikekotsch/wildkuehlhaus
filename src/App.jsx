@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "./lib/supabase";
 
-// Three large animals (3 × 30 units) fill the available cold-store capacity.
-const MAX_UNITS = 90;
-const ZOO_EMAIL = "zoo@example.com"; // ← hier eintragen
+// Three medium animals (3 × 15 units) fill the available cold-store capacity.
+const MAX_UNITS = 45;
+const ZOO_EMAIL = import.meta.env.VITE_ZOO_EMAIL;
 
 const WILD = [
   { label: "Klein",  sub: "Hase · Ente · Fasan", value: "K", units: 5,  icon: "🐇" },
@@ -49,6 +49,7 @@ export default function App() {
   const [geradVoll, setGeradVoll]   = useState(false);
   const [zeigeReset, setZeigeReset] = useState(false);
   const [resetting, setResetting]   = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const vorherVoll = useRef(false);
 
   const pct     = Math.min(100, Math.round((state.einheiten / MAX_UNITS) * 100));
@@ -85,6 +86,7 @@ export default function App() {
   }, [state]);
 
   async function einlagern(groesse) {
+    setSubmitting(true);
     const w = WILD.find(w => w.value === groesse);
     const { error: err } = await supabase.from("einlagerungen").insert({
       name,
@@ -92,13 +94,17 @@ export default function App() {
       einheiten: w.units,
       icon: w.icon,
     });
-    if (!err) {
-      setLoading(true);
-      setError(false);
-      await fetchState();
-    }
-    setSchritt("bestaetigt");
+    setSubmitting(false);
     setName("");
+    if (err) {
+      setError(true);
+      setSchritt("start");
+      return;
+    }
+    setLoading(true);
+    setError(false);
+    await fetchState();
+    setSchritt("bestaetigt");
     setTimeout(() => setSchritt("start"), 3000);
   }
 
@@ -106,8 +112,6 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: F.bg, fontFamily: "'Georgia', serif", color: F.text }}>
-      <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet" />
-
       {/* ── VOLLMELDUNG ─────────────────────────────── */}
       {geradVoll && (
         <div onClick={() => setGeradVoll(false)} style={{
@@ -170,11 +174,6 @@ export default function App() {
             <div style={{ fontSize: 16, fontWeight: 700, color: F.rot }}>
               Verbindungsfehler – bitte neu laden
             </div>
-            {localStorage.getItem("kuehlhaus_last_reset") && (
-              <div style={{ fontSize: 14, color: F.textHe, marginTop: 8 }}>
-                Zuletzt geleert: {datum(localStorage.getItem("kuehlhaus_last_reset"))}
-              </div>
-            )}
           </div>
         )}
 
@@ -330,15 +329,16 @@ export default function App() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {WILD.map(w => (
-                  <button key={w.value} onClick={() => einlagern(w.value)} style={{
+                  <button key={w.value} onClick={() => !submitting && einlagern(w.value)} disabled={submitting} style={{
                     padding: "18px 20px",
                     background: "#fff", border: `2px solid ${F.rand}`,
                     borderRadius: 10,
                     display: "flex", alignItems: "center", gap: 16,
-                    cursor: "pointer", textAlign: "left",
+                    cursor: submitting ? "not-allowed" : "pointer", textAlign: "left",
                     transition: "border-color 0.15s, background 0.15s",
+                    opacity: submitting ? 0.6 : 1,
                   }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = F.gruen; e.currentTarget.style.background = "#f0f5ee"; }}
+                    onMouseEnter={e => { if (!submitting) { e.currentTarget.style.borderColor = F.gruen; e.currentTarget.style.background = "#f0f5ee"; } }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = F.rand; e.currentTarget.style.background = "#fff"; }}
                   >
                     <span style={{ fontSize: 36 }}>{w.icon}</span>
