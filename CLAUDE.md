@@ -25,6 +25,7 @@ Copy `.env.example` to `.env.local` and fill in the values:
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon key (safe to expose) |
 | `VITE_WRITE_TOKEN` | Secret token for the write link — keep private |
 | `VITE_ZOO_EMAIL` | Recipient for the zoo notification mailto link |
+| `CRON_SECRET` | Shared secret Vercel Cron sends as `Authorization: Bearer <value>` when it calls `api/keep-alive.js` — server-side only, no `VITE_` prefix |
 
 **Write link:** `https://<deployed-url>?token=<VITE_WRITE_TOKEN>` — share this with hunters. Public URL (no token) is read-only.
 
@@ -66,6 +67,10 @@ All styles are inline (`style={{}}`). The `F` object at the top of `src/App.jsx`
 | `einheiten` | number | unit weight (5 / 15 / 30) |
 | `icon` | text | emoji string |
 | `ts` | timestamptz | **auto-set by Supabase — do not pass on insert** |
+
+### Keep-alive: `api/keep-alive.js`
+
+Vercel serverless function, triggered daily by the cron in `vercel.json` (`0 8 * * *`). Pings the `einlagerungen` table via the Supabase REST API so the free-tier project doesn't auto-pause from inactivity. Requires `CRON_SECRET` to be set in Vercel's project environment variables — Vercel sends it automatically as the `Authorization` header on cron-triggered requests, so no manual wiring beyond setting the value. A `pg_cron` job also runs inside the Supabase database itself as a second, more direct heartbeat.
 
 ### UI flow (multi-step form)
 
