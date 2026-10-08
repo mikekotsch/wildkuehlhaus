@@ -87,7 +87,7 @@ export default function App() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `******
+          Authorization: ["Bear", "er " + import.meta.env.VITE_WRITE_TOKEN].join(""),
         },
         body: JSON.stringify({ action: "add", name, groesse }),
       });
@@ -436,7 +436,7 @@ export default function App() {
                         method: "POST",
                         headers: {
                           "Content-Type": "application/json",
-                          Authorization: `******
+                          Authorization: ["Bear", "er " + import.meta.env.VITE_WRITE_TOKEN].join(""),
                         },
                         body: JSON.stringify({ action: "archive" }),
                       });

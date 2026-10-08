@@ -46,9 +46,9 @@ leerer Bestand angezeigt. Nach einem erfolgreichen Aufruf sind die Daten in Blob
 und die beiden Supabase-Variablen können aus Vercel entfernt werden. Das
 Supabase-Projekt erst löschen, nachdem der Import überprüft wurde.
 
-Für lokale Entwicklung `npm install` und `npm run dev` verwenden. Für den
-Blob-Zugriff lokal `BLOB_READ_WRITE_TOKEN` in `.env.local` setzen. `npm run
-build` erstellt den Produktions-Build.
+Für den lokalen Aufruf der Vercel Functions `vercel dev` (Vercel CLI) verwenden
+und `BLOB_READ_WRITE_TOKEN` in `.env.local` setzen. `npm run dev` startet nur
+den Vite-Frontend-Server. `npm run build` erstellt den Produktions-Build.
 
 ## Lizenz
 

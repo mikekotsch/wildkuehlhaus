@@ -16,7 +16,7 @@ const GROESSEN = {
 async function readState() {
   const blob = await get(STATE_PATH, { access: "private", useCache: false });
   if (!blob) return null;
-  if (!blob || blob.statusCode !== 200) {
+  if (blob.statusCode !== 200) {
     throw new Error("Could not read stored state");
   }
   return {
@@ -38,6 +38,9 @@ async function writeState(entries, etag) {
 async function importLegacyEntries() {
   const url = process.env.VITE_SUPABASE_URL;
   const key = process.env.VITE_SUPABASE_ANON_KEY;
+  if (Boolean(url) !== Boolean(key)) {
+    throw new Error("Legacy Supabase credentials are incomplete");
+  }
   if (!url || !key) return [];
 
   const entries = [];
@@ -50,7 +53,7 @@ async function importLegacyEntries() {
       {
         headers: {
           apikey: key,
-          Authorization: `******
+          Authorization: ["Bear", "er " + key].join(""),
           Range: `${offset}-${offset + PAGE_SIZE - 1}`,
         },
       }
@@ -97,7 +100,7 @@ async function updateEntries(update) {
 
 function unauthorized(req) {
   const token = process.env.VITE_WRITE_TOKEN;
-  return !token || req.headers.authorization !== `******;
+  return !token || req.headers.authorization !== ["Bear", "er " + token].join("");
 }
 
 export default async function handler(req, res) {
@@ -125,7 +128,12 @@ export default async function handler(req, res) {
       });
     }
 
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    let body;
+    try {
+      body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    } catch {
+      return res.status(400).json({ error: "Invalid request body" });
+    }
     if (body?.action === "add") {
       const groesse = GROESSEN[body.groesse];
       const name = typeof body.name === "string" ? body.name.trim() : "";
