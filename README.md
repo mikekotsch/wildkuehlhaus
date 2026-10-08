@@ -24,54 +24,31 @@ drei mittlere oder rund neun kleine Tiere füllen das Kühlhaus.
 ## Archivierung nach Abholung
 
 Wenn der Zoo das Kühlhaus leert, werden die aktiven Einträge nicht gelöscht.
-Sie erhalten in Supabase einen Zeitstempel in `abgeholt_am` und verschwinden
-dadurch aus Füllstand und Einlagerungsprotokoll. Die Daten bleiben für eine
-spätere Auswertung in der Datenbank erhalten.
+Sie erhalten in Blob einen Zeitstempel in `abgeholt_am` und verschwinden dadurch
+aus Füllstand und Einlagerungsprotokoll. Die Daten bleiben im Archiv erhalten.
 
-Vor dem Deployen dieser Version muss
-`supabase/migrations/20260825000000_archive_collected_entries.sql` im
-Supabase SQL Editor ausgeführt werden. Die Migration ergänzt die benötigte
-Spalte und die Berechtigung zum Archivieren.
+## Vercel-Setup
 
-## Setup
+Die App verwendet Vercel Functions und einen privaten Vercel-Blob-Store für
+Einträge und Archiv. In Vercel einen Blob-Store mit dem Projekt verbinden; dadurch
+steht der Function `BLOB_READ_WRITE_TOKEN` zur Verfügung. Zusätzlich die
+Umgebungsvariablen `VITE_WRITE_TOKEN` und `VITE_ZOO_EMAIL` setzen und deployen.
+Der Schreib-Link bleibt `https://<deployed-url>?token=<VITE_WRITE_TOKEN>`.
 
-### Voraussetzungen
+### Umzug bestehender Einträge
 
-- [Node.js](https://nodejs.org/) (v18 oder neuer)
-- [Vite](https://vitejs.dev/) + React
+Beim ersten Aufruf nach dem Deployment importiert die API alle bisherigen
+Supabase-Einträge einschließlich des Archivs in Blob. Für diesen ersten Aufruf
+müssen `VITE_SUPABASE_URL` und `VITE_SUPABASE_ANON_KEY` noch in Vercel gesetzt
+sein und das alte Supabase-Projekt erreichbar sein. Die App zeigt bei einem
+fehlgeschlagenen Import einen Verbindungsfehler; die Daten werden dann nicht als
+leerer Bestand angezeigt. Nach einem erfolgreichen Aufruf sind die Daten in Blob
+und die beiden Supabase-Variablen können aus Vercel entfernt werden. Das
+Supabase-Projekt erst löschen, nachdem der Import überprüft wurde.
 
-### Installation
-
-```bash
-npm create vite@latest wildkuehlhaus -- --template react
-cd wildkuehlhaus
-npm install
-```
-
-Die Datei `src/App.jsx` mit dem Inhalt aus `freezer-app.jsx` ersetzen.
-
-### Starten
-
-```bash
-npm run dev
-```
-
-App läuft dann unter `http://localhost:5173`
-
-### Deployen (z. B. auf Netlify oder Vercel)
-
-```bash
-npm run build
-# den "dist"-Ordner hochladen oder per CLI deployen
-```
-
-## Konfiguration
-
-In `freezer-app.jsx` (Zeile 5) die Zoo-E-Mail-Adresse eintragen:
-
-```js
-const ZOO_EMAIL = "zoo@example.com"; // ← hier eintragen
-```
+Für lokale Entwicklung `npm install` und `npm run dev` verwenden. Für den
+Blob-Zugriff lokal `BLOB_READ_WRITE_TOKEN` in `.env.local` setzen. `npm run
+build` erstellt den Produktions-Build.
 
 ## Lizenz
 

@@ -2,27 +2,18 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("archive migration adds timestamp, index, and update policy", async () => {
-  const sql = await readFile(
-    new URL("../supabase/migrations/20260825000000_archive_collected_entries.sql", import.meta.url),
-    "utf8"
-  );
-
-  assert.match(sql, /add column if not exists abgeholt_am timestamptz/i);
-  assert.match(sql, /create policy "anon update"[\s\S]*for update to anon/i);
-  assert.match(sql, /where abgeholt_am is null/i);
+test("the API stores entries and returns active rows only", async () => {
+  const api = await readFile(new URL("../api/state.js", import.meta.url), "utf8");
+  assert.match(api, /stored\.entries[\s\S]*\.filter\(entry => !entry\.abgeholt_am\)/);
+  assert.match(api, /body\?\.action === "archive"[\s\S]*abgeholt_am: now/);
+  assert.match(api, /BlobPreconditionFailedError/);
 });
 
-test("the app loads active rows and archives rather than deletes", async () => {
+test("the app uses the Vercel state API for writes", async () => {
   const app = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
 
-  assert.match(
-    app,
-    /\.select\("\*"\)[\s\S]*\.is\("abgeholt_am", null\)[\s\S]*\.order\("ts"/
-  );
-  assert.match(
-    app,
-    /\.update\(\{ abgeholt_am: now \}\)[\s\S]*\.is\("abgeholt_am", null\)/
-  );
-  assert.doesNotMatch(app, /\.delete\(\)\.gte\("id", 0\)/);
+  assert.match(app, /fetch\("\/api\/state"\)/);
+  assert.match(app, /action: "add"/);
+  assert.match(app, /action: "archive"/);
+  assert.doesNotMatch(app, /from "\.\/lib\/supabase"/);
 });

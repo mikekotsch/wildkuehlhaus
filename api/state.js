@@ -1,8 +1,11 @@
-import { get, list, put } from "@vercel/blob";
+import {
+  BlobPreconditionFailedError,
+  get,
+  put,
+} from "@vercel/blob";
 import { randomUUID } from "node:crypto";
 
-const PREFIX = "einlagerungen/";
-const INITIALIZED_PATH = "einlagerungen-initialized.json";
+const STATE_PATH = "einlagerungen.json";
 const PAGE_SIZE = 1000;
 const GROESSEN = {
   K: { einheiten: 5, icon: "🐇" },
@@ -10,40 +13,26 @@ const GROESSEN = {
   G: { einheiten: 30, icon: "🐗" },
 };
 
-async function readBlob(path) {
-  const blob = await get(path, { access: "private", useCache: false });
+async function readState() {
+  const blob = await get(STATE_PATH, { access: "private", useCache: false });
+  if (!blob) return null;
   if (!blob || blob.statusCode !== 200) {
-    throw new Error(`Could not read stored entry: ${path}`);
+    throw new Error("Could not read stored state");
   }
-  return new Response(blob.stream).json();
+  return {
+    entries: await new Response(blob.stream).json(),
+    etag: blob.blob.etag,
+  };
 }
 
-async function writeBlob(path, value) {
-  await put(path, JSON.stringify(value), {
+async function writeState(entries, etag) {
+  await put(STATE_PATH, JSON.stringify(entries), {
     access: "private",
     addRandomSuffix: false,
-    allowOverwrite: true,
+    allowOverwrite: Boolean(etag),
+    ...(etag ? { ifMatch: etag } : {}),
     contentType: "application/json",
   });
-}
-
-async function getStoredEntries() {
-  const blobs = [];
-  let cursor;
-  let hasMore;
-
-  do {
-    const page = await list({ prefix: PREFIX, cursor, limit: PAGE_SIZE });
-    blobs.push(...page.blobs);
-    cursor = page.cursor;
-    hasMore = page.hasMore;
-  } while (hasMore);
-
-  return Promise.all(
-    blobs
-      .filter(blob => blob.pathname.endsWith(".json"))
-      .map(blob => readBlob(blob.pathname))
-  );
 }
 
 async function importLegacyEntries() {
@@ -78,21 +67,32 @@ async function importLegacyEntries() {
   return entries;
 }
 
-function entryPath(id) {
-  return `${PREFIX}${Buffer.from(String(id)).toString("base64url")}.json`;
+async function getOrInitializeState() {
+  const stored = await readState();
+  if (stored) return stored;
+  const legacyEntries = await importLegacyEntries();
+  try {
+    await writeState(legacyEntries, null);
+  } catch (error) {
+    if (!(error instanceof BlobPreconditionFailedError)) throw error;
+  }
+  const initialized = await readState();
+  if (!initialized) throw new Error("Could not initialize stored state");
+  return initialized;
 }
 
-async function ensureInitialized() {
-  const marker = await get(INITIALIZED_PATH, { access: "private", useCache: false });
-  if (marker) return;
-
-  const legacyEntries = await importLegacyEntries();
-  await Promise.all(
-    legacyEntries.map((entry, index) =>
-      writeBlob(entryPath(entry.id ?? randomUUID() ?? index), entry)
-    )
-  );
-  await writeBlob(INITIALIZED_PATH, { initializedAt: new Date().toISOString() });
+async function updateEntries(update) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const stored = await getOrInitializeState();
+    try {
+      await writeState(update(stored.entries), stored.etag);
+      return;
+    } catch (error) {
+      if (!(error instanceof BlobPreconditionFailedError) || attempt === 4) {
+        throw error;
+      }
+    }
+  }
 }
 
 function unauthorized(req) {
@@ -104,26 +104,25 @@ export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
   try {
-    await ensureInitialized();
+    if (req.method !== "GET" && req.method !== "POST") {
+      res.setHeader("Allow", "GET, POST");
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+
+    if (req.method === "POST" && unauthorized(req)) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const stored = await getOrInitializeState();
 
     if (req.method === "GET") {
-      const entries = await getStoredEntries();
-      const activeEntries = entries
+      const activeEntries = stored.entries
         .filter(entry => !entry.abgeholt_am)
         .sort((a, b) => new Date(b.ts) - new Date(a.ts));
       return res.status(200).json({
         einlagerungen: activeEntries,
         einheiten: activeEntries.reduce((sum, entry) => sum + entry.einheiten, 0),
       });
-    }
-
-    if (req.method !== "POST") {
-      res.setHeader("Allow", "GET, POST");
-      return res.status(405).json({ error: "Method not allowed" });
-    }
-
-    if (unauthorized(req)) {
-      return res.status(401).json({ error: "Unauthorized" });
     }
 
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
@@ -142,17 +141,16 @@ export default async function handler(req, res) {
         ts: new Date().toISOString(),
         abgeholt_am: null,
       };
-      await writeBlob(entryPath(entry.id), entry);
+      await updateEntries(entries => [...entries, entry]);
       return res.status(201).json({ ok: true });
     }
 
     if (body?.action === "archive") {
-      const entries = await getStoredEntries();
       const now = new Date().toISOString();
-      await Promise.all(
-        entries
-          .filter(entry => !entry.abgeholt_am)
-          .map(entry => writeBlob(entryPath(entry.id), { ...entry, abgeholt_am: now }))
+      await updateEntries(entries =>
+        entries.map(entry =>
+          entry.abgeholt_am ? entry : { ...entry, abgeholt_am: now }
+        )
       );
       return res.status(200).json({ ok: true });
     }

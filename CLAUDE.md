@@ -1,77 +1,51 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working in this repository.
 
 ## Commands
 
-All commands run from the project root:
+Run from the project root:
 
 ```bash
-npm run dev      # dev server at http://localhost:5173
-npm run build    # production build → dist/
-npm run lint     # eslint check (no --fix)
-npm run preview  # serve the production build locally
+npm run dev
+npm run build
+npm run lint
+npm run preview
 ```
 
-No TypeScript — the parent `CLAUDE.md` rule about `npx tsc --noEmit` does not apply here. Post-edit verification is `npx eslint .` only.
+There is no TypeScript. Run `npx eslint .` after code changes.
 
 ## Environment variables
 
-Copy `.env.example` to `.env.local` and fill in the values:
-
 | Variable | Purpose |
 |---|---|
-| `VITE_SUPABASE_URL` | Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anon key (safe to expose) |
-| `VITE_WRITE_TOKEN` | Secret token for the write link — keep private |
-| `VITE_ZOO_EMAIL` | Recipient for the zoo notification mailto link |
-| `CRON_SECRET` | Shared secret Vercel Cron sends as `Authorization: Bearer <value>` when it calls `api/keep-alive.js` — server-side only, no `VITE_` prefix |
+| `BLOB_READ_WRITE_TOKEN` | Vercel Blob access for API functions |
+| `VITE_WRITE_TOKEN` | Token in the existing write URL |
+| `VITE_ZOO_EMAIL` | Zoo notification recipient |
+| `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | Legacy credentials used only for initial import |
 
-**Write link:** `https://<deployed-url>?token=<VITE_WRITE_TOKEN>` — share this with hunters. Public URL (no token) is read-only.
+The write link remains `https://<deployed-url>?token=<VITE_WRITE_TOKEN>`.
+Connect a Vercel Blob store to the project. Keep the Supabase variables through
+the first successful state request after deployment; that request imports the
+existing entries and archive. Remove the old variables only after verifying the
+import.
 
 ## Architecture
 
-Single-component Vite + React app. **`src/App.jsx` is the only file to edit** for any app logic or UI changes. There is no router, no context, no state library — just `useState`/`useEffect`/`useRef` and Supabase.
+The UI is a single Vite + React component in `src/App.jsx`. It calls the
+same-origin `/api/state` Vercel Function. That API stores each entry in private
+Vercel Blob storage and returns active entries; archiving retains entries in
+storage with `abgeholt_am` set. The one-time import from Supabase is performed
+by the API when it first initializes the Blob store.
 
-### `src/lib/supabase.js`
+The app state is `{ einlagerungen: Array<Entry>, einheiten: number }`, where
+`einheiten` is the sum of active entries. The entry log drives the protocol and
+the zoo notification email.
 
-Exports the configured Supabase client. Import from here wherever Supabase is needed.
+All styles are inline. `F` in `src/App.jsx` contains the design colors.
+`src/index.css` is intentionally empty.
 
-### Key constants (top of `src/App.jsx`)
-
-| Constant | Purpose |
-|----------|---------|
-| `ZOO_EMAIL` | Recipient for the "full" notification mailto link |
-| `MAX_UNITS` | Total capacity (100 units = 100 %) |
-| `WILD` | Array of game sizes with unit weights (5 / 15 / 30) |
-
-### Styling
-
-All styles are inline (`style={{}}`). The `F` object at the top of `src/App.jsx` is the entire design token set (colors). There is no CSS module, no Tailwind, no styled-components. `src/index.css` is intentionally empty.
-
-### State shape
-
-```js
-{ einlagerungen: Array<Entry>, einheiten: number }
-```
-
-`einheiten` is the sum of unit weights stored. The log (`einlagerungen`) is the source of truth for the protocol view and the zoo mailto body. State is fetched from Supabase on mount via `fetchState()`.
-
-### Supabase table: `einlagerungen`
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | auto | primary key |
-| `name` | text | hunter name |
-| `groesse` | text | `"K"` / `"M"` / `"G"` |
-| `einheiten` | number | unit weight (5 / 15 / 30) |
-| `icon` | text | emoji string |
-| `ts` | timestamptz | **auto-set by Supabase — do not pass on insert** |
-
-### Keep-alive: `api/keep-alive.js`
-
-Vercel serverless function, triggered daily by the cron in `vercel.json` (`0 8 * * *`). Pings the `einlagerungen` table via the Supabase REST API so the free-tier project doesn't auto-pause from inactivity. Requires `CRON_SECRET` to be set in Vercel's project environment variables — Vercel sends it automatically as the `Authorization` header on cron-triggered requests, so no manual wiring beyond setting the value. A `pg_cron` job also runs inside the Supabase database itself as a second, more direct heartbeat.
-
-### UI flow (multi-step form)
-
-`schritt` state drives which panel renders: `"start"` → `"name"` → `"groesse"` → `"bestaetigt"` (auto-returns to `"start"` after 3 s). Full modal overlay fires once when capacity first crosses 100. Add/reset UI is only rendered when `canWrite` is true (URL token matches `VITE_WRITE_TOKEN`).
+The form flow is `"start"` → `"name"` → `"groesse"` → `"bestaetigt"` (returns
+to start after three seconds). The full-capacity modal fires when capacity
+first reaches 100%. Add and archive controls appear when the URL token matches
+`VITE_WRITE_TOKEN`.
