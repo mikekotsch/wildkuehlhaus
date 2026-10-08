@@ -19,24 +19,24 @@ There is no TypeScript. Run `npx eslint .` after code changes.
 
 | Variable | Purpose |
 |---|---|
-| `BLOB_READ_WRITE_TOKEN` | Vercel Blob access for API functions |
+| `DATABASE_URL` | Neon Postgres connection provided by the Vercel integration |
 | `VITE_WRITE_TOKEN` | Token in the existing write URL |
 | `VITE_ZOO_EMAIL` | Zoo notification recipient |
-| `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | Legacy credentials used only for initial import |
+| `BLOB_READ_WRITE_TOKEN` | Existing Blob credentials, needed only for initial data migration |
+| `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | Legacy credentials used only if no Blob data is present |
 
 The write link remains `https://<deployed-url>?token=<VITE_WRITE_TOKEN>`.
-Connect a Vercel Blob store to the project. Keep the Supabase variables through
-the first successful state request after deployment; that request imports the
-existing entries and archive. Remove the old variables only after verifying the
-import.
+The Neon integration provides `DATABASE_URL`. Keep legacy storage variables
+through the first successful state request after deployment, verify that
+existing entries and archive are in Neon, then remove the old variables.
 
 ## Architecture
 
 The UI is a single Vite + React component in `src/App.jsx`. It calls the
-same-origin `/api/state` Vercel Function. That API stores each entry in private
-Vercel Blob storage and returns active entries; archiving retains entries in
-storage with `abgeholt_am` set. The one-time import from Supabase is performed
-by the API when it first initializes the Blob store.
+same-origin `/api/state` Vercel Function. That API stores entries in Neon
+Postgres and returns active entries; archiving retains entries with
+`abgeholt_am` set. On first access it imports from the previous Blob store, or
+from Supabase if there is no Blob state.
 
 The app state is `{ einlagerungen: Array<Entry>, einheiten: number }`, where
 `einheiten` is the sum of active entries. The entry log drives the protocol and

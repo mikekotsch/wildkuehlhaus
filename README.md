@@ -24,31 +24,32 @@ drei mittlere oder rund neun kleine Tiere füllen das Kühlhaus.
 ## Archivierung nach Abholung
 
 Wenn der Zoo das Kühlhaus leert, werden die aktiven Einträge nicht gelöscht.
-Sie erhalten in Blob einen Zeitstempel in `abgeholt_am` und verschwinden dadurch
+Sie erhalten in Neon einen Zeitstempel in `abgeholt_am` und verschwinden dadurch
 aus Füllstand und Einlagerungsprotokoll. Die Daten bleiben im Archiv erhalten.
 
 ## Vercel-Setup
 
-Die App verwendet Vercel Functions und einen privaten Vercel-Blob-Store für
-Einträge und Archiv. In Vercel einen Blob-Store mit dem Projekt verbinden; dadurch
-steht der Function `BLOB_READ_WRITE_TOKEN` zur Verfügung. Zusätzlich die
-Umgebungsvariablen `VITE_WRITE_TOKEN` und `VITE_ZOO_EMAIL` setzen und deployen.
-Der Schreib-Link bleibt `https://<deployed-url>?token=<VITE_WRITE_TOKEN>`.
+Die App verwendet eine Vercel Function und Neon Postgres. Die aktivierte Neon
+Integration stellt `DATABASE_URL` in Vercel bereit; die API erstellt die
+benötigten Tabellen beim ersten Aufruf. `VITE_WRITE_TOKEN` und `VITE_ZOO_EMAIL`
+bleiben unverändert. Der Schreib-Link bleibt
+`https://<deployed-url>?token=<VITE_WRITE_TOKEN>`.
 
 ### Umzug bestehender Einträge
 
-Beim ersten Aufruf nach dem Deployment importiert die API alle bisherigen
-Supabase-Einträge einschließlich des Archivs in Blob. Für diesen ersten Aufruf
-müssen `VITE_SUPABASE_URL` und `VITE_SUPABASE_ANON_KEY` noch in Vercel gesetzt
-sein und das alte Supabase-Projekt erreichbar sein. Die App zeigt bei einem
-fehlgeschlagenen Import einen Verbindungsfehler; die Daten werden dann nicht als
-leerer Bestand angezeigt. Nach einem erfolgreichen Aufruf sind die Daten in Blob
-und die beiden Supabase-Variablen können aus Vercel entfernt werden. Das
-Supabase-Projekt erst löschen, nachdem der Import überprüft wurde.
+Beim ersten Aufruf importiert die API vorhandene Einträge und das Archiv aus dem
+bisherigen Vercel Blob. Dafür `BLOB_READ_WRITE_TOKEN` bis zum erfolgreichen
+ersten Aufruf gesetzt lassen. Falls kein Blob-Bestand gefunden wird, kann die API
+stattdessen alte Supabase-Einträge übernehmen; dafür `VITE_SUPABASE_URL` und
+`VITE_SUPABASE_ANON_KEY` während des Imports setzen. Ein fehlgeschlagener Import
+wird als Verbindungsfehler angezeigt und nicht als leerer Bestand behandelt.
+Nach erfolgreichem Import den Datenbestand in Neon überprüfen und anschließend
+die nicht mehr benötigten Blob- und Supabase-Variablen entfernen.
 
 Für den lokalen Aufruf der Vercel Functions `vercel dev` (Vercel CLI) verwenden
-und `BLOB_READ_WRITE_TOKEN` in `.env.local` setzen. `npm run dev` startet nur
-den Vite-Frontend-Server. `npm run build` erstellt den Produktions-Build.
+und `DATABASE_URL` in `.env.local` setzen. Für die optionale Datenübernahme aus
+Blob zusätzlich `BLOB_READ_WRITE_TOKEN` setzen. `npm run dev` startet nur den
+Vite-Frontend-Server. `npm run build` erstellt den Produktions-Build.
 
 ## Lizenz
 

@@ -1,11 +1,7 @@
-import {
-  BlobPreconditionFailedError,
-  get,
-  put,
-} from "@vercel/blob";
+import { get } from "@vercel/blob";
+import { neon } from "@neondatabase/serverless";
 import { randomUUID } from "node:crypto";
 
-const STATE_PATH = "einlagerungen.json";
 const PAGE_SIZE = 1000;
 const GROESSEN = {
   K: { einheiten: 5, icon: "🐇" },
@@ -13,29 +9,45 @@ const GROESSEN = {
   G: { einheiten: 30, icon: "🐗" },
 };
 
-async function readState() {
-  const blob = await get(STATE_PATH, { access: "private", useCache: false });
-  if (!blob) return null;
-  if (blob.statusCode !== 200) {
-    throw new Error("Could not read stored state");
-  }
-  return {
-    entries: await new Response(blob.stream).json(),
-    etag: blob.blob.etag,
-  };
+function getSql() {
+  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not configured");
+  return neon(process.env.DATABASE_URL);
 }
 
-async function writeState(entries, etag) {
-  await put(STATE_PATH, JSON.stringify(entries), {
+async function initializeDatabase(sql) {
+  await sql.query(`
+    CREATE TABLE IF NOT EXISTS einlagerungen (
+      id text PRIMARY KEY,
+      name text NOT NULL,
+      groesse text NOT NULL CHECK (groesse IN ('K', 'M', 'G')),
+      einheiten integer NOT NULL,
+      icon text NOT NULL,
+      ts timestamptz NOT NULL,
+      abgeholt_am timestamptz
+    )
+  `);
+  await sql.query(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      name text PRIMARY KEY,
+      completed_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+}
+
+async function readBlobEntries() {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) return null;
+  const blob = await get("einlagerungen.json", {
     access: "private",
-    addRandomSuffix: false,
-    allowOverwrite: Boolean(etag),
-    ...(etag ? { ifMatch: etag } : {}),
-    contentType: "application/json",
+    useCache: false,
   });
+  if (!blob) return null;
+  if (blob.statusCode !== 200) throw new Error("Could not read legacy Blob state");
+  const entries = await new Response(blob.stream).json();
+  if (!Array.isArray(entries)) throw new Error("Legacy Blob state was invalid");
+  return entries;
 }
 
-async function importLegacyEntries() {
+async function readSupabaseEntries() {
   const url = process.env.VITE_SUPABASE_URL;
   const key = process.env.VITE_SUPABASE_ANON_KEY;
   if (Boolean(url) !== Boolean(key)) {
@@ -70,32 +82,62 @@ async function importLegacyEntries() {
   return entries;
 }
 
-async function getOrInitializeState() {
-  const stored = await readState();
-  if (stored) return stored;
-  const legacyEntries = await importLegacyEntries();
-  try {
-    await writeState(legacyEntries, null);
-  } catch (error) {
-    if (!(error instanceof BlobPreconditionFailedError)) throw error;
+function normalizeEntry(entry) {
+  const groesse = GROESSEN[entry.groesse];
+  if (!groesse || typeof entry.name !== "string") {
+    throw new Error("Legacy entry was invalid");
   }
-  const initialized = await readState();
-  if (!initialized) throw new Error("Could not initialize stored state");
-  return initialized;
+  return {
+    id: String(entry.id ?? randomUUID()),
+    name: entry.name,
+    groesse: entry.groesse,
+    einheiten: groesse.einheiten,
+    icon: typeof entry.icon === "string" ? entry.icon : groesse.icon,
+    ts: entry.ts ?? new Date().toISOString(),
+    abgeholt_am: entry.abgeholt_am ?? null,
+  };
 }
 
-async function updateEntries(update) {
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const stored = await getOrInitializeState();
-    try {
-      await writeState(update(stored.entries), stored.etag);
-      return;
-    } catch (error) {
-      if (!(error instanceof BlobPreconditionFailedError) || attempt === 4) {
-        throw error;
-      }
-    }
+async function importLegacyData(sql) {
+  const [{ exists }] = await sql.query(
+    "SELECT EXISTS (SELECT 1 FROM app_migrations WHERE name = $1) AS exists",
+    ["blob-to-neon"]
+  );
+  if (exists) return;
+
+  const blobEntries = await readBlobEntries();
+  const entries = blobEntries?.length ? blobEntries : await readSupabaseEntries();
+  const normalizedEntries = entries.map(normalizeEntry);
+  for (let offset = 0; offset < normalizedEntries.length; offset += 50) {
+    await Promise.all(normalizedEntries.slice(offset, offset + 50).map(entry =>
+      sql.query(
+        `INSERT INTO einlagerungen
+          (id, name, groesse, einheiten, icon, ts, abgeholt_am)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          entry.id,
+          entry.name,
+          entry.groesse,
+          entry.einheiten,
+          entry.icon,
+          entry.ts,
+          entry.abgeholt_am,
+        ]
+      )
+    ));
   }
+  await sql.query(
+    "INSERT INTO app_migrations (name) VALUES ($1) ON CONFLICT (name) DO NOTHING",
+    ["blob-to-neon"]
+  );
+}
+
+async function ensureReady() {
+  const sql = getSql();
+  await initializeDatabase(sql);
+  await importLegacyData(sql);
+  return sql;
 }
 
 function unauthorized(req) {
@@ -116,15 +158,18 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const stored = await getOrInitializeState();
+    const sql = await ensureReady();
 
     if (req.method === "GET") {
-      const activeEntries = stored.entries
-        .filter(entry => !entry.abgeholt_am)
-        .sort((a, b) => new Date(b.ts) - new Date(a.ts));
+      const entries = await sql.query(
+        `SELECT id, name, groesse, einheiten, icon, ts, abgeholt_am
+         FROM einlagerungen
+         WHERE abgeholt_am IS NULL
+         ORDER BY ts DESC`
+      );
       return res.status(200).json({
-        einlagerungen: activeEntries,
-        einheiten: activeEntries.reduce((sum, entry) => sum + entry.einheiten, 0),
+        einlagerungen: entries,
+        einheiten: entries.reduce((sum, entry) => sum + entry.einheiten, 0),
       });
     }
 
@@ -134,6 +179,7 @@ export default async function handler(req, res) {
     } catch {
       return res.status(400).json({ error: "Invalid request body" });
     }
+
     if (body?.action === "add") {
       const groesse = GROESSEN[body.groesse];
       const name = typeof body.name === "string" ? body.name.trim() : "";
@@ -141,24 +187,18 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: "Invalid entry" });
       }
 
-      const entry = {
-        id: randomUUID(),
-        name,
-        groesse: body.groesse,
-        ...groesse,
-        ts: new Date().toISOString(),
-        abgeholt_am: null,
-      };
-      await updateEntries(entries => [...entries, entry]);
+      await sql.query(
+        `INSERT INTO einlagerungen
+          (id, name, groesse, einheiten, icon, ts)
+         VALUES ($1, $2, $3, $4, $5, now())`,
+        [randomUUID(), name, body.groesse, groesse.einheiten, groesse.icon]
+      );
       return res.status(201).json({ ok: true });
     }
 
     if (body?.action === "archive") {
-      const now = new Date().toISOString();
-      await updateEntries(entries =>
-        entries.map(entry =>
-          entry.abgeholt_am ? entry : { ...entry, abgeholt_am: now }
-        )
+      await sql.query(
+        "UPDATE einlagerungen SET abgeholt_am = now() WHERE abgeholt_am IS NULL"
       );
       return res.status(200).json({ ok: true });
     }

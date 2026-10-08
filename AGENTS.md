@@ -21,10 +21,11 @@ Copy `.env.example` to `.env.local` and fill in the values:
 
 | Variable | Purpose |
 |---|---|
-| `BLOB_READ_WRITE_TOKEN` | Vercel Blob access for API functions |
+| `DATABASE_URL` | Neon Postgres connection provided by the Vercel integration |
 | `VITE_WRITE_TOKEN` | Secret token for the write link — keep private |
 | `VITE_ZOO_EMAIL` | Zoo notification recipient |
-| `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | Existing project credentials, needed only for first-request data import |
+| `BLOB_READ_WRITE_TOKEN` | Existing Blob credentials, needed only for initial data migration |
+| `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | Legacy credentials used only if no Blob data is present |
 
 **Write link:** `https://<deployed-url>?token=<VITE_WRITE_TOKEN>` — share this with hunters. Public URL (no token) is read-only.
 
@@ -34,7 +35,7 @@ Single-component Vite + React app. **`src/App.jsx` is the main UI file**. There 
 
 ### Storage API: `api/state.js`
 
-Vercel Function stores each entry as a private Vercel Blob. Public GET requests read active entries; authorized POST requests add entries or archive the active set. The existing `?token=` write link is unchanged.
+Vercel Function stores entries and archive history in Neon Postgres. The API creates its tables and imports existing Blob state on first access; authorized POST requests add entries or archive the active set. The existing `?token=` write link is unchanged.
 
 ### Key constants (top of `src/App.jsx`)
 
@@ -54,9 +55,9 @@ All styles are inline (`style={{}}`). The `F` object at the top of `src/App.jsx`
 { einlagerungen: Array<Entry>, einheiten: number }
 ```
 
-`einheiten` is the sum of active entry weights. The full Blob archive preserves entries after collection; state is fetched through `/api/state` on mount.
+`einheiten` is the sum of active entry weights. The Neon archive preserves entries after collection; state is fetched through `/api/state` on mount.
 
-On first API access, the endpoint imports legacy Supabase entries if the old project credentials are configured. Keep those Vercel environment variables until the first successful import, then remove them.
+On first API access, the endpoint imports legacy Blob entries, or Supabase entries if no Blob state is present. Keep the old storage environment variables until the first successful import, verify the data in Neon, then remove them.
 
 ### UI flow (multi-step form)
 
