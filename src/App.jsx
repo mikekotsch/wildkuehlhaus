@@ -186,13 +186,6 @@ export default function App() {
             <div style={{ fontSize: 15, color: F.textHe, letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>
               Aktueller Füllstand
             </div>
-            <div style={{
-              fontFamily: "'Playfair Display', serif",
-              fontSize: 96, fontWeight: 900, lineHeight: 1,
-              color: balkenF,
-            }}>
-              {pct}<span style={{ fontSize: 42, color: F.textHe }}>%</span>
-            </div>
 
             <div style={{
               display: "inline-block", marginTop: 10,
@@ -400,8 +393,7 @@ export default function App() {
                     </div>
                   </div>
                   <div style={{ textAlign: "right", fontSize: 14, color: F.textHe }}>
-                    <div style={{ fontWeight: 700, color: balkenF }}>+{e.einheiten} %</div>
-                    <div style={{ marginTop: 3 }}>{datum(e.ts)}</div>
+                    <div>{datum(e.ts)}</div>
                   </div>
                 </div>
               ))}

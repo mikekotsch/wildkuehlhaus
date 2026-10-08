@@ -16,3 +16,12 @@ test("capacity matches real-world fill counts for all three sizes", async () => 
   // roughly ten to fifteen small animals fill the cold store
   assert.equal(maxUnits, smallUnits * 9);
 });
+
+test("the UI shows capacity visually and omits numerical fill values", async () => {
+  const app = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
+
+  assert.match(app, /width: `\$\{pct\}%`/);
+  assert.match(app, /state\.einlagerungen\.filter\(e => e\.groesse === w\.value\)\.length/);
+  assert.doesNotMatch(app, /\{pct\}<span/);
+  assert.doesNotMatch(app, /\+\{e\.einheiten\}\s*%/);
+});
