@@ -25,7 +25,6 @@ Copy `.env.example` to `.env.local` and fill in the values:
 | `VITE_WRITE_TOKEN` | Secret token for the write link — keep private |
 | `VITE_ZOO_EMAIL` | Zoo notification recipient |
 | `BLOB_READ_WRITE_TOKEN` | Existing Blob credentials, needed only for initial data migration |
-| `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | Legacy credentials used only if no Blob data is present |
 
 **Write link:** `https://<deployed-url>?token=<VITE_WRITE_TOKEN>` — share this with hunters. Public URL (no token) is read-only.
 
@@ -57,7 +56,7 @@ All styles are inline (`style={{}}`). The `F` object at the top of `src/App.jsx`
 
 `einheiten` is the sum of active entry weights. The Neon archive preserves entries after collection; state is fetched through `/api/state` on mount.
 
-On first API access, the endpoint imports legacy Blob entries, or Supabase entries if no Blob state is present. Keep the old storage environment variables until the first successful import, verify the data in Neon, then remove them.
+On first API access, the endpoint imports legacy Blob entries. Keep the Blob environment variable until the first successful import, verify the data in Neon, then remove it.
 
 ### UI flow (multi-step form)
 

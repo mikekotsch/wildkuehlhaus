@@ -23,20 +23,19 @@ There is no TypeScript. Run `npx eslint .` after code changes.
 | `VITE_WRITE_TOKEN` | Token in the existing write URL |
 | `VITE_ZOO_EMAIL` | Zoo notification recipient |
 | `BLOB_READ_WRITE_TOKEN` | Existing Blob credentials, needed only for initial data migration |
-| `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | Legacy credentials used only if no Blob data is present |
 
 The write link remains `https://<deployed-url>?token=<VITE_WRITE_TOKEN>`.
-The Neon integration provides `DATABASE_URL`. Keep legacy storage variables
-through the first successful state request after deployment, verify that
-existing entries and archive are in Neon, then remove the old variables.
+The Neon integration provides `DATABASE_URL`. Keep the Blob token through the
+first successful state request after deployment, verify that existing entries
+and archive are in Neon, then remove the Blob token.
 
 ## Architecture
 
 The UI is a single Vite + React component in `src/App.jsx`. It calls the
 same-origin `/api/state` Vercel Function. That API stores entries in Neon
 Postgres and returns active entries; archiving retains entries with
-`abgeholt_am` set. On first access it imports from the previous Blob store, or
-from Supabase if there is no Blob state.
+`abgeholt_am` set. On first access it imports existing entries from the previous
+Blob store.
 
 The app state is `{ einlagerungen: Array<Entry>, einheiten: number }`, where
 `einheiten` is the sum of active entries. The entry log drives the protocol and

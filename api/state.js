@@ -2,7 +2,6 @@ import { get } from "@vercel/blob";
 import { neon } from "@neondatabase/serverless";
 import { randomUUID } from "node:crypto";
 
-const PAGE_SIZE = 1000;
 const GROESSEN = {
   K: { einheiten: 5, icon: "🐇" },
   M: { einheiten: 15, icon: "🦌" },
@@ -47,41 +46,6 @@ async function readBlobEntries() {
   return entries;
 }
 
-async function readSupabaseEntries() {
-  const url = process.env.VITE_SUPABASE_URL;
-  const key = process.env.VITE_SUPABASE_ANON_KEY;
-  if (Boolean(url) !== Boolean(key)) {
-    throw new Error("Legacy Supabase credentials are incomplete");
-  }
-  if (!url || !key) return [];
-
-  const entries = [];
-  let offset = 0;
-  let page;
-
-  do {
-    const response = await fetch(
-      `${url.replace(/\/$/, "")}/rest/v1/einlagerungen?select=*&order=ts.asc`,
-      {
-        headers: {
-          apikey: key,
-          Authorization: ["Bear", "er " + key].join(""),
-          Range: `${offset}-${offset + PAGE_SIZE - 1}`,
-        },
-      }
-    );
-    if (!response.ok) {
-      throw new Error(`Legacy data import failed: ${response.status}`);
-    }
-    page = await response.json();
-    if (!Array.isArray(page)) throw new Error("Legacy data response was invalid");
-    entries.push(...page);
-    offset += page.length;
-  } while (page.length === PAGE_SIZE);
-
-  return entries;
-}
-
 function normalizeEntry(entry) {
   const groesse = GROESSEN[entry.groesse];
   if (!groesse || typeof entry.name !== "string") {
@@ -106,8 +70,7 @@ async function importLegacyData(sql) {
   if (exists) return;
 
   const blobEntries = await readBlobEntries();
-  const entries = blobEntries?.length ? blobEntries : await readSupabaseEntries();
-  const normalizedEntries = entries.map(normalizeEntry);
+  const normalizedEntries = (blobEntries ?? []).map(normalizeEntry);
   for (let offset = 0; offset < normalizedEntries.length; offset += 50) {
     await Promise.all(normalizedEntries.slice(offset, offset + 50).map(entry =>
       sql.query(

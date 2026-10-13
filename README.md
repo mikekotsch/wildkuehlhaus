@@ -39,12 +39,10 @@ bleiben unverändert. Der Schreib-Link bleibt
 
 Beim ersten Aufruf importiert die API vorhandene Einträge und das Archiv aus dem
 bisherigen Vercel Blob. Dafür `BLOB_READ_WRITE_TOKEN` bis zum erfolgreichen
-ersten Aufruf gesetzt lassen. Falls kein Blob-Bestand gefunden wird, kann die API
-stattdessen alte Supabase-Einträge übernehmen; dafür `VITE_SUPABASE_URL` und
-`VITE_SUPABASE_ANON_KEY` während des Imports setzen. Ein fehlgeschlagener Import
-wird als Verbindungsfehler angezeigt und nicht als leerer Bestand behandelt.
-Nach erfolgreichem Import den Datenbestand in Neon überprüfen und anschließend
-die nicht mehr benötigten Blob- und Supabase-Variablen entfernen.
+ersten Aufruf gesetzt lassen. Ein fehlgeschlagener Import wird als
+Verbindungsfehler angezeigt und nicht als leerer Bestand behandelt. Nach
+erfolgreichem Import den Datenbestand in Neon überprüfen und anschließend die
+nicht mehr benötigte Blob-Variable entfernen.
 
 Für den lokalen Aufruf der Vercel Functions `vercel dev` (Vercel CLI) verwenden
 und `DATABASE_URL` in `.env.local` setzen. Für die optionale Datenübernahme aus

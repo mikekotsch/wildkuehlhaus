@@ -8,7 +8,7 @@ test("the API stores entries in Neon and returns active rows only", async () => 
   assert.match(api, /FROM einlagerungen[\s\S]*WHERE abgeholt_am IS NULL/);
   assert.match(api, /UPDATE einlagerungen SET abgeholt_am = now\(\)/);
   assert.match(api, /body\?\.action === "add"[\s\S]*INSERT INTO einlagerungen/);
-  assert.match(api, /readBlobEntries[\s\S]*readSupabaseEntries/);
+  assert.match(api, /readBlobEntries/);
 });
 
 test("the app uses the Vercel state API for writes", async () => {
@@ -17,5 +17,4 @@ test("the app uses the Vercel state API for writes", async () => {
   assert.match(app, /fetch\("\/api\/state"\)/);
   assert.match(app, /action: "add"/);
   assert.match(app, /action: "archive"/);
-  assert.doesNotMatch(app, /from "\.\/lib\/supabase"/);
 });
