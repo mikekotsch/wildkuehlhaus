@@ -24,54 +24,30 @@ drei mittlere oder rund neun kleine Tiere füllen das Kühlhaus.
 ## Archivierung nach Abholung
 
 Wenn der Zoo das Kühlhaus leert, werden die aktiven Einträge nicht gelöscht.
-Sie erhalten in Supabase einen Zeitstempel in `abgeholt_am` und verschwinden
-dadurch aus Füllstand und Einlagerungsprotokoll. Die Daten bleiben für eine
-spätere Auswertung in der Datenbank erhalten.
+Sie erhalten in Neon einen Zeitstempel in `abgeholt_am` und verschwinden dadurch
+aus Füllstand und Einlagerungsprotokoll. Die Daten bleiben im Archiv erhalten.
 
-Vor dem Deployen dieser Version muss
-`supabase/migrations/20260825000000_archive_collected_entries.sql` im
-Supabase SQL Editor ausgeführt werden. Die Migration ergänzt die benötigte
-Spalte und die Berechtigung zum Archivieren.
+## Vercel-Setup
 
-## Setup
+Die App verwendet eine Vercel Function und Neon Postgres. Die aktivierte Neon
+Integration stellt `DATABASE_URL` in Vercel bereit; die API erstellt die
+benötigten Tabellen beim ersten Aufruf. `VITE_WRITE_TOKEN` und `VITE_ZOO_EMAIL`
+bleiben unverändert. Der Schreib-Link bleibt
+`https://<deployed-url>?token=<VITE_WRITE_TOKEN>`.
 
-### Voraussetzungen
+### Umzug bestehender Einträge
 
-- [Node.js](https://nodejs.org/) (v18 oder neuer)
-- [Vite](https://vitejs.dev/) + React
+Beim ersten Aufruf importiert die API vorhandene Einträge und das Archiv aus dem
+bisherigen Vercel Blob. Dafür `BLOB_READ_WRITE_TOKEN` bis zum erfolgreichen
+ersten Aufruf gesetzt lassen. Ein fehlgeschlagener Import wird als
+Verbindungsfehler angezeigt und nicht als leerer Bestand behandelt. Nach
+erfolgreichem Import den Datenbestand in Neon überprüfen und anschließend die
+nicht mehr benötigte Blob-Variable entfernen.
 
-### Installation
-
-```bash
-npm create vite@latest wildkuehlhaus -- --template react
-cd wildkuehlhaus
-npm install
-```
-
-Die Datei `src/App.jsx` mit dem Inhalt aus `freezer-app.jsx` ersetzen.
-
-### Starten
-
-```bash
-npm run dev
-```
-
-App läuft dann unter `http://localhost:5173`
-
-### Deployen (z. B. auf Netlify oder Vercel)
-
-```bash
-npm run build
-# den "dist"-Ordner hochladen oder per CLI deployen
-```
-
-## Konfiguration
-
-In `freezer-app.jsx` (Zeile 5) die Zoo-E-Mail-Adresse eintragen:
-
-```js
-const ZOO_EMAIL = "zoo@example.com"; // ← hier eintragen
-```
+Für den lokalen Aufruf der Vercel Functions `vercel dev` (Vercel CLI) verwenden
+und `DATABASE_URL` in `.env.local` setzen. Für die optionale Datenübernahme aus
+Blob zusätzlich `BLOB_READ_WRITE_TOKEN` setzen. `npm run dev` startet nur den
+Vite-Frontend-Server. `npm run build` erstellt den Produktions-Build.
 
 ## Lizenz
 

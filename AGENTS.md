@@ -21,19 +21,20 @@ Copy `.env.example` to `.env.local` and fill in the values:
 
 | Variable | Purpose |
 |---|---|
-| `VITE_SUPABASE_URL` | Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anon key (safe to expose) |
+| `DATABASE_URL` | Neon Postgres connection provided by the Vercel integration |
 | `VITE_WRITE_TOKEN` | Secret token for the write link — keep private |
+| `VITE_ZOO_EMAIL` | Zoo notification recipient |
+| `BLOB_READ_WRITE_TOKEN` | Existing Blob credentials, needed only for initial data migration |
 
 **Write link:** `https://<deployed-url>?token=<VITE_WRITE_TOKEN>` — share this with hunters. Public URL (no token) is read-only.
 
 ## Architecture
 
-Single-component Vite + React app. **`src/App.jsx` is the only file to edit** for any app logic or UI changes. There is no router, no context, no state library — just `useState`/`useEffect`/`useRef` and Supabase.
+Single-component Vite + React app. **`src/App.jsx` is the main UI file**. There is no router, no context, no state library — just React hooks and the same-origin `/api/state` endpoint.
 
-### `src/lib/supabase.js`
+### Storage API: `api/state.js`
 
-Exports the configured Supabase client. Import from here wherever Supabase is needed.
+Vercel Function stores entries and archive history in Neon Postgres. The API creates its tables and imports existing Blob state on first access; authorized POST requests add entries or archive the active set. The existing `?token=` write link is unchanged.
 
 ### Key constants (top of `src/App.jsx`)
 
@@ -53,18 +54,9 @@ All styles are inline (`style={{}}`). The `F` object at the top of `src/App.jsx`
 { einlagerungen: Array<Entry>, einheiten: number }
 ```
 
-`einheiten` is the sum of unit weights stored. The log (`einlagerungen`) is the source of truth for the protocol view and the zoo mailto body. State is fetched from Supabase on mount via `fetchState()`.
+`einheiten` is the sum of active entry weights. The Neon archive preserves entries after collection; state is fetched through `/api/state` on mount.
 
-### Supabase table: `einlagerungen`
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | auto | primary key |
-| `name` | text | hunter name |
-| `groesse` | text | `"K"` / `"M"` / `"G"` |
-| `einheiten` | number | unit weight (5 / 15 / 30) |
-| `icon` | text | emoji string |
-| `ts` | timestamptz | **auto-set by Supabase — do not pass on insert** |
+On first API access, the endpoint imports legacy Blob entries. Keep the Blob environment variable until the first successful import, verify the data in Neon, then remove it.
 
 ### UI flow (multi-step form)
 

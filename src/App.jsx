@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { supabase } from "./lib/supabase";
 
 // Three medium animals (3 × 15 units) fill the available cold-store capacity.
 const MAX_UNITS = 45;
@@ -57,20 +56,16 @@ export default function App() {
   const balkenF = pct < 60 ? F.gruenMi : pct < 85 ? F.amber : F.rot;
 
   const fetchState = useCallback(async () => {
-    const { data, error: err } = await supabase
-      .from("einlagerungen")
-      .select("*")
-      .is("abgeholt_am", null)
-      .order("ts", { ascending: false });
-    if (err) {
+    try {
+      const response = await fetch("/api/state");
+      if (!response.ok) throw new Error("State request failed");
+      setState(await response.json());
+      setError(false);
+    } catch {
       setError(true);
-    } else {
-      setState({
-        einlagerungen: data,
-        einheiten: data.reduce((sum, e) => sum + e.einheiten, 0),
-      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -87,20 +82,24 @@ export default function App() {
 
   async function einlagern(groesse) {
     setSubmitting(true);
-    const w = WILD.find(w => w.value === groesse);
-    const { error: err } = await supabase.from("einlagerungen").insert({
-      name,
-      groesse,
-      einheiten: w.units,
-      icon: w.icon,
-    });
-    setSubmitting(false);
-    setName("");
-    if (err) {
+    try {
+      const response = await fetch("/api/state", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: ["Bear", "er " + import.meta.env.VITE_WRITE_TOKEN].join(""),
+        },
+        body: JSON.stringify({ action: "add", name, groesse }),
+      });
+      if (!response.ok) throw new Error("Entry request failed");
+    } catch {
+      setSubmitting(false);
       setError(true);
       setSchritt("start");
       return;
     }
+    setSubmitting(false);
+    setName("");
     setLoading(true);
     setError(false);
     await fetchState();
@@ -186,13 +185,6 @@ export default function App() {
           <div style={{ textAlign: "center", marginBottom: 20 }}>
             <div style={{ fontSize: 15, color: F.textHe, letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>
               Aktueller Füllstand
-            </div>
-            <div style={{
-              fontFamily: "'Playfair Display', serif",
-              fontSize: 96, fontWeight: 900, lineHeight: 1,
-              color: balkenF,
-            }}>
-              {pct}<span style={{ fontSize: 42, color: F.textHe }}>%</span>
             </div>
 
             <div style={{
@@ -401,8 +393,7 @@ export default function App() {
                     </div>
                   </div>
                   <div style={{ textAlign: "right", fontSize: 14, color: F.textHe }}>
-                    <div style={{ fontWeight: 700, color: balkenF }}>+{e.einheiten} %</div>
-                    <div style={{ marginTop: 3 }}>{datum(e.ts)}</div>
+                    <div>{datum(e.ts)}</div>
                   </div>
                 </div>
               ))}
@@ -431,13 +422,22 @@ export default function App() {
                   <button onClick={async () => {
                     if (resetting) return;
                     setResetting(true);
-                    const now = new Date().toISOString();
-                    const { error: err } = await supabase
-                      .from("einlagerungen")
-                      .update({ abgeholt_am: now })
-                      .is("abgeholt_am", null);
+                    let failed = false;
+                    try {
+                      const response = await fetch("/api/state", {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          Authorization: ["Bear", "er " + import.meta.env.VITE_WRITE_TOKEN].join(""),
+                        },
+                        body: JSON.stringify({ action: "archive" }),
+                      });
+                      if (!response.ok) failed = true;
+                    } catch {
+                      failed = true;
+                    }
                     setResetting(false);
-                    if (err) {
+                    if (failed) {
                       setError(true);
                       return;
                     }
