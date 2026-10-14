@@ -9,6 +9,7 @@ test("the API stores entries in Neon and returns active rows only", async () => 
   assert.match(api, /UPDATE einlagerungen SET abgeholt_am = now\(\)/);
   assert.match(api, /body\?\.action === "add"[\s\S]*INSERT INTO einlagerungen/);
   assert.match(api, /readBlobEntries/);
+  assert.match(api, /process\.env\.wildkuehlhaus_DATABASE_URL \|\| process\.env\.DATABASE_URL/);
 });
 
 test("the app uses the Vercel state API for writes", async () => {

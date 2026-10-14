@@ -19,13 +19,14 @@ There is no TypeScript. Run `npx eslint .` after code changes.
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | Neon Postgres connection provided by the Vercel integration |
+| `wildkuehlhaus_DATABASE_URL` | Shared Neon Postgres connection provided by the Vercel integration |
 | `VITE_WRITE_TOKEN` | Token in the existing write URL |
 | `VITE_ZOO_EMAIL` | Zoo notification recipient |
 | `BLOB_READ_WRITE_TOKEN` | Existing Blob credentials, needed only for initial data migration |
 
 The write link remains `https://<deployed-url>?token=<VITE_WRITE_TOKEN>`.
-The Neon integration provides `DATABASE_URL`. Keep the Blob token through the
+The Neon integration provides `wildkuehlhaus_DATABASE_URL`. The API also
+accepts `DATABASE_URL` as a fallback. Keep the Blob token through the
 first successful state request after deployment, verify that existing entries
 and archive are in Neon, then remove the Blob token.
 

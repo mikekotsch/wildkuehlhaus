@@ -30,7 +30,7 @@ aus Füllstand und Einlagerungsprotokoll. Die Daten bleiben im Archiv erhalten.
 ## Vercel-Setup
 
 Die App verwendet eine Vercel Function und Neon Postgres. Die aktivierte Neon
-Integration stellt `DATABASE_URL` in Vercel bereit; die API erstellt die
+Integration stellt `wildkuehlhaus_DATABASE_URL` in Vercel bereit; die API erstellt die
 benötigten Tabellen beim ersten Aufruf. `VITE_WRITE_TOKEN` und `VITE_ZOO_EMAIL`
 bleiben unverändert. Der Schreib-Link bleibt
 `https://<deployed-url>?token=<VITE_WRITE_TOKEN>`.
@@ -45,7 +45,8 @@ erfolgreichem Import den Datenbestand in Neon überprüfen und anschließend die
 nicht mehr benötigte Blob-Variable entfernen.
 
 Für den lokalen Aufruf der Vercel Functions `vercel dev` (Vercel CLI) verwenden
-und `DATABASE_URL` in `.env.local` setzen. Für die optionale Datenübernahme aus
+und `wildkuehlhaus_DATABASE_URL` in `.env.local` setzen. Die API unterstützt
+weiterhin `DATABASE_URL` als Fallback. Für die optionale Datenübernahme aus
 Blob zusätzlich `BLOB_READ_WRITE_TOKEN` setzen. `npm run dev` startet nur den
 Vite-Frontend-Server. `npm run build` erstellt den Produktions-Build.
 

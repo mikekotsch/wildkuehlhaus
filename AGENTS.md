@@ -21,7 +21,7 @@ Copy `.env.example` to `.env.local` and fill in the values:
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | Neon Postgres connection provided by the Vercel integration |
+| `wildkuehlhaus_DATABASE_URL` | Shared Neon Postgres connection provided by the Vercel integration |
 | `VITE_WRITE_TOKEN` | Secret token for the write link — keep private |
 | `VITE_ZOO_EMAIL` | Zoo notification recipient |
 | `BLOB_READ_WRITE_TOKEN` | Existing Blob credentials, needed only for initial data migration |
